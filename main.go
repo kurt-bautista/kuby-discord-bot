@@ -6,8 +6,33 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
+
 	"github.com/bwmarrin/discordgo"
 )
+
+var (
+	svcEC2 *ec2.EC2
+)
+
+func init() {
+	region := os.Getenv("AWS_REGION")
+	if len(region) == 0 {
+		fmt.Println("AWS_REGION not set; using ap-east-1 as default")
+		region = "ap-east-1"
+	}
+
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(region),
+	})
+	if err != nil {
+		fmt.Println("Error", err)
+	}
+
+	svcEC2 = ec2.New(sess)
+}
 
 func main() {
 	key := os.Getenv("DISCORD_KEY")
