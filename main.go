@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -72,7 +73,71 @@ func messageCreate(session *discordgo.Session, msg *discordgo.MessageCreate) {
 		reply = "<:kys:620483919774744596>"
 	case "gsgo":
 		reply = "<@!199174365408002049> <@!199462593264484352> <@!357042093199196162> <@!199917417953099778> <@!379870473481355264>"
+	case "mc.start":
+		if !stringInSlice(msg.Member.Roles, "779331911944372225") {
+			reply = "You are not allowed to run this command."
+			break
+		}
+
+		instanceID, err := getInstanceIDWithNameTag("minecraft-server")
+		if err != nil {
+			fmt.Println("Error", err)
+			reply = "Error starting minecraft server: " + err.Error()
+			break
+		}
+		result, err := startInstanceWithID(instanceID)
+		if err != nil {
+			fmt.Println("Error", err)
+			reply = "Error starting minecraft server: " + err.Error()
+			break
+		}
+		fmt.Println(result.StartingInstances)
+		reply = "Starting Minecraft server..."
 	}
 
 	session.ChannelMessageSend(msg.ChannelID, reply)
+}
+
+func stringInSlice(haystack []string, needle string) bool {
+	for _, item := range haystack {
+		if item == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func getInstanceIDWithNameTag(name string) (string, error) {
+	input := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			&ec2.Filter{
+				Name: aws.String("tag:Name"),
+				Values: []*string{
+					aws.String(name),
+				},
+			},
+		},
+	}
+
+	result, err := svcEC2.DescribeInstances(input)
+	if err != nil {
+		fmt.Println("Error", err)
+		return "", err
+	}
+	if len(result.Reservations) == 0 {
+		err := errors.New("Instance with Name \"" + name + "\" not found")
+		fmt.Println("Error", err)
+		return "", err
+	}
+
+	return *result.Reservations[0].Instances[0].InstanceId, nil
+}
+
+func startInstanceWithID(id string) (*ec2.StartInstancesOutput, error) {
+	input := &ec2.StartInstancesInput{
+		InstanceIds: []*string{
+			aws.String(id),
+		},
+	}
+	return svcEC2.StartInstances(input)
 }
